@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GST Tax Invoice</title>
+  <style>
+    :root {
+      --primary: #1e5aa8;
+      --primary-dark: #16447e;
+      --primary-light: #eaf1fa;
+      --border: #d8e0ea;
+      --text: #1f2a37;
+      --muted: #5b6878;
+      --bg: #eef2f7;
+      --danger: #c0392b;
+      --ok: #1e8e54;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 14px;
+    }
+
+    main {
+      position: relative;
+      max-width: 860px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(30, 90, 168, 0.08);
+      overflow: hidden;
+    }
+
+    /* Watermark */
+    .watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-28deg);
+      font-size: 120px;
+      font-weight: 800;
+      letter-spacing: 8px;
+      opacity: 0.10;
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+      white-space: nowrap;
+    }
+    .watermark.show { display: block; }
+    .watermark.paid { color: var(--ok); }
+    .watermark.due { color: var(--danger); }
+
+    /* Editable text affordance */
+    [contenteditable="true"] {
+      cursor: text;
+      border-radius: 3px;
+      transition: background 0.15s;
+    }
+    [contenteditable="true"]:hover { background: rgba(0, 0, 0, 0.05); }
+    [contenteditable="true"]:focus {
+      outline: none;
+      background: rgba(30, 90, 168, 0.08);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+    .invoice-header [contenteditable="true"]:hover { background: rgba(255, 255, 255, 0.12); }
+    .invoice-header [contenteditable="true"]:focus { background: rgba(255, 255, 255, 0.18); box-shadow: none; }
+
+    /* Header */
+    .invoice-header {
+      position: relative;
+      z-index: 6;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 32px 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: #fff;
+    }
+
+    .header-left { display: flex; flex-direction: column; }
+
+    .logo-upload {
+      width: 150px;
+      height: 70px;
+      border: 2px dashed rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .logo-upload.has-logo { border-style: solid; border-color: rgba(255, 255, 255, 0.35); }
+    .logo-upload img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .logo-text { font-size: 13px; letter-spacing: 1px; color: rgba(255, 255, 255, 0.9); }
+
+    .company-name {
+      margin-top: 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      width: 240px;
+      padding: 4px 2px;
+    }
+    .company-name::placeholder { color: rgba(255, 255, 255, 0.6); }
+    .company-name:focus { outline: none; border-bottom-color: #fff; box-shadow: none; }
+
+    .invoice-meta { text-align: right; }
+    .invoice-meta h1 {
+      margin: 0 0 12px;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      display: inline-block;
+    }
+    .invoice-meta .field {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 13px;
+    }
+    .invoice-meta .lbl { color: rgba(255, 255, 255, 0.85); }
+    .invoice-meta input, .invoice-meta select {
+      background: rgba(255, 255, 255, 0.95);
+      border: none;
+      border-radius: 4px;
+      padding: 5px 8px;
+      color: var(--text);
+      font-size: 13px;
+      width: 160px;
+    }
+
+    /* Body sections */
+    .content { position: relative; z-index: 6; padding: 28px 40px; }
+
+    .parties {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    .party {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary);
+      margin: 0 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--primary-light);
+      display: block;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .field-row .lbl {
+      flex: 0 0 70px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .field-row input, .field-row select {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+      min-width: 0;
+    }
+    .field-row input.invalid { border-color: var(--danger); background: #fdecea; }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+    }
+
+    /* Line items table */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      min-width: 720px;
+    }
+    thead th {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 10px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    thead th.num { text-align: right; }
+    thead th:last-child { text-align: center; }
+    thead th[contenteditable="true"]:hover { background: rgba(255, 255, 255, 0.15); }
+    thead th[contenteditable="true"]:focus { background: rgba(255, 255, 255, 0.22); box-shadow: none; }
+
+    tbody td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tbody tr:nth-child(even) { background: #f7faff; }
+    tbody td input, tbody td select {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      padding: 6px 6px;
+      font-size: 13px;
+      background: transparent;
+      color: var(--text);
+    }
+    tbody td input:hover, tbody td select:hover { border-color: var(--border); }
+    tbody td input[type="number"] { text-align: right; }
+    tbody td.num, tbody td .cell-num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    td.actions-col { text-align: center; }
+
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary {
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-secondary:hover { background: var(--primary-light); }
+    .remove-row {
+      background: #fff;
+      color: var(--danger);
+      border: 1px solid #e7c3bd;
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+    .remove-row:hover { background: #fdecea; }
+    .row-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+
+    /* Totals */
+    .totals {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-top: 8px;
+    }
+    .totals-left { flex: 1; }
+    .totals-left .field-row .lbl { flex: 0 0 120px; }
+    .totals-left .field-row { max-width: 320px; }
+
+    .amount-words {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: var(--primary-light);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .amount-words strong { color: var(--primary); }
+
+    .summary {
+      width: 320px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .summary .line {
+      display: flex;
+      justify-content: space-between;
+      padding: 9px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .summary .line span:last-child {
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+    .summary .grand {
+      background: var(--primary);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .summary .balance {
+      background: var(--primary-light);
+      font-weight: 600;
+      border-bottom: none;
+    }
+    .summary .hidden-line { display: none; }
+
+    /* Bank + signature */
+    .pay-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 24px;
+      margin-top: 28px;
+    }
+    .qr-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    #qrcode { width: 132px; height: 132px; }
+    #qrcode img, #qrcode canvas { width: 132px !important; height: 132px !important; }
+    .qr-hint { font-size: 11px; color: var(--muted); }
+
+    .sign-area { text-align: center; }
+    .sign-upload {
+      width: 200px;
+      height: 90px;
+      margin: 8px auto;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .sign-upload.has-sign { border-style: solid; }
+    .sign-upload img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .sign-name {
+      border: none;
+      border-top: 1px solid var(--text);
+      border-radius: 0;
+      text-align: center;
+      padding: 6px 4px 2px;
+      width: 200px;
+      font-weight: 600;
+    }
+    .sign-desig {
+      border: none; text-align: center; width: 200px; font-size: 12px; color: var(--muted);
+    }
+
+    .declaration {
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+
+    /* Notes & Terms */
+    .notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 28px;
+    }
+    .notes textarea {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    /* Footer actions */
+    .actions {
+      position: relative;
+      z-index: 6;
+      padding: 20px 40px 28px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 680px) {
+      .parties, .notes, .pay-grid { grid-template-columns: 1fr; }
+      .invoice-header { flex-direction: column; align-items: stretch; }
+      .invoice-meta { text-align: left; }
+      .invoice-meta .field { justify-content: flex-start; }
+      .totals { flex-direction: column; }
+      .summary { width: 100%; }
+    }
+
+    /* Print stylesheet */
+    @media print {
+      body { background: #fff; padding: 0; }
+      main { box-shadow: none; border: none; border-radius: 0; max-width: 100%; }
+      .no-print { display: none !important; }
+      thead th, tbody td input, tbody td select { border-color: var(--border); }
+      .table-wrap { overflow: visible; }
+      table { min-width: 0; }
+      /* Hide only empty upload boxes; keep uploaded logo/signature visible */
+      .logo-upload:not(.has-logo), .sign-upload:not(.has-sign) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Status watermark -->
+    <div class="watermark" id="watermark"></div>
+
+    <!-- Header: logo + company (left) + invoice meta (right) -->
+    <header class="invoice-header">
+      <div class="header-left">
+        <label class="logo-upload" id="logo-upload" title="Click to upload logo">
+          <img id="logo-img" alt="Company logo" hidden>
+          <span class="logo-text" id="logo-text">+ Add Logo</span>
+          <input type="file" id="logo-input" accept="image/*" hidden>
+        </label>
+        <input type="text" id="company-name" class="company-name" placeholder="Your Company Name">
+      </div>
+
+      <div class="invoice-meta">
+        <h1 contenteditable="true">TAX INVOICE</h1>
+        <div class="field">
+          <span class="lbl" contenteditable="true">Invoice No.</span>
+          <input type="text" id="invoice-number" placeholder="INV-001">
+        </div>
+        <div class="field">
+          <span class="lbl" contenteditable="true">Date</span>
+          <input type="date" id="invoice-date">
+        </div>
+        <div class="field">
+          <span class="lbl" contenteditable="true">Due Date</span>
+          <input type="date" id="due-date">
+        </div>
+        <div class="field">
+          <span class="lbl" contenteditable="true">Place of Supply</span>
+          <select id="place-of-supply"></select>
+        </div>
+        <div class="field">
+          <span class="lbl" contenteditable="true">Reverse Charge</span>
+          <select id="reverse-charge">
+            <option value="No">No</option>
+            <option value="Yes">Yes</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- Seller & Client -->
+      <div class="parties">
+        <section class="party" id="seller-details">
+          <h2 contenteditable="true">From (Seller)</h2>
+          <div class="field-row"><span class="lbl" contenteditable="true">Name</span><input type="text" id="seller-name"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Address</span><input type="text" id="seller-address"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">GSTIN</span><input type="text" id="seller-gstin" placeholder="22AAAAA0000A1Z5"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">State</span><select id="seller-state"></select></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Email</span><input type="email" id="seller-email"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Phone</span><input type="tel" id="seller-phone"></div>
+        </section>
+
+        <section class="party" id="client-details">
+          <h2 contenteditable="true">To (Client)</h2>
+          <div class="field-row"><span class="lbl" contenteditable="true">Name</span><input type="text" id="client-name"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Address</span><input type="text" id="client-address"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">GSTIN</span><input type="text" id="client-gstin" placeholder="27BBBBB0000B1Z5"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">State</span><select id="client-state"></select></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Email</span><input type="email" id="client-email"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Phone</span><input type="tel" id="client-phone"></div>
+        </section>
+      </div>
+
+      <!-- Line items -->
+      <section id="line-items">
+        <h2 contenteditable="true">Line Items</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th contenteditable="true">Service / Description</th>
+                <th contenteditable="true">HSN/SAC</th>
+                <th class="num" contenteditable="true">Qty</th>
+                <th class="num" contenteditable="true">Rate</th>
+                <th class="num" contenteditable="true">Disc %</th>
+                <th class="num" contenteditable="true">Taxable Value</th>
+                <th class="num" contenteditable="true">GST %</th>
+                <th class="num" contenteditable="true">Amount</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="line-items-body"></tbody>
+          </table>
+        </div>
+        <div class="row-actions no-print">
+          <button type="button" id="add-row" class="btn-secondary">+ Add Row</button>
+          <button type="button" id="remove-row" class="btn-secondary">- Remove Row</button>
+        </div>
+      </section>
+
+      <!-- Totals: adjustments (left) + summary (right) -->
+      <div class="totals">
+        <div class="totals-left">
+          <div class="field-row"><span class="lbl" contenteditable="true">Invoice Discount</span><input type="number" id="invoice-discount" min="0" step="0.01" value="0"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Amount Paid</span><input type="number" id="amount-paid" min="0" step="0.01" value="0"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Payment Status</span>
+            <select id="payment-status">
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partially Paid</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div class="amount-words">
+            <strong>Amount in words:</strong> <span id="amount-words">Zero Rupees Only</span>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="line"><span contenteditable="true">Subtotal (Taxable)</span><span id="summary-subtotal">₹0.00</span></div>
+          <div class="line hidden-line" id="line-discount"><span contenteditable="true">Invoice Discount</span><span id="summary-discount">-₹0.00</span></div>
+          <div class="line hidden-line" id="line-cgst"><span contenteditable="true">CGST</span><span id="summary-cgst">₹0.00</span></div>
+          <div class="line hidden-line" id="line-sgst"><span contenteditable="true">SGST</span><span id="summary-sgst">₹0.00</span></div>
+          <div class="line hidden-line" id="line-igst"><span contenteditable="true">IGST</span><span id="summary-igst">₹0.00</span></div>
+          <div class="line"><span contenteditable="true">Round Off</span><span id="summary-roundoff">₹0.00</span></div>
+          <div class="line grand"><span contenteditable="true">Grand Total</span><span id="summary-grand-total">₹0.00</span></div>
+          <div class="line balance"><span contenteditable="true">Balance Due</span><span id="summary-balance">₹0.00</span></div>
+        </div>
+      </div>
+
+      <!-- Bank details + payment QR + signature -->
+      <div class="pay-grid">
+        <section id="bank-details">
+          <h2 contenteditable="true">Bank &amp; Payment Details</h2>
+          <div class="field-row"><span class="lbl" contenteditable="true">Acc. Name</span><input type="text" id="bank-name"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Acc. No.</span><input type="text" id="bank-acc"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">Bank/Branch</span><input type="text" id="bank-branch"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">IFSC</span><input type="text" id="bank-ifsc"></div>
+          <div class="field-row"><span class="lbl" contenteditable="true">UPI ID</span><input type="text" id="upi-id" placeholder="name@bank"></div>
+          <div class="qr-box">
+            <div id="qrcode"></div>
+            <div class="qr-hint" id="qr-hint">Enter a UPI ID to generate a payment QR</div>
+          </div>
+        </section>
+
+        <section class="sign-area" id="signature">
+          <h2 contenteditable="true">Authorized Signatory</h2>
+          <label class="sign-upload" id="sign-upload" title="Click to upload signature">
+            <img id="sign-img" alt="Signature" hidden>
+            <span id="sign-text">+ Add Signature</span>
+            <input type="file" id="sign-input" accept="image/*" hidden>
+          </label>
+          <div><input type="text" id="sign-name" class="sign-name" placeholder="Signatory Name"></div>
+          <div><input type="text" id="sign-desig" class="sign-desig" placeholder="Designation"></div>
+        </section>
+      </div>
+
+      <p class="declaration" contenteditable="true" id="declaration">We declare that this invoice shows the actual price of the goods/services described and that all particulars are true and correct.</p>
+
+      <!-- Notes & Terms -->
+      <section class="notes">
+        <div class="note-block">
+          <h2 contenteditable="true">Notes</h2>
+          <textarea id="notes" placeholder="Additional notes for the client..."></textarea>
+        </div>
+        <div class="note-block">
+          <h2 contenteditable="true">Terms &amp; Conditions</h2>
+          <textarea id="terms" placeholder="Payment terms, due dates, conditions..."></textarea>
+        </div>
+      </section>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions no-print">
+      <button type="button" id="export-json" class="btn-secondary">Export Data</button>
+      <label class="btn-secondary" style="display:inline-flex;align-items:center;" title="Import data JSON">
+        Import Data
+        <input type="file" id="import-json" accept="application/json" hidden>
+      </label>
+      <button type="button" id="print-invoice" class="btn-secondary">Print</button>
+      <button type="button" id="download-pdf" class="btn-primary">Download Invoice</button>
+    </div>
+  </main>
+
+  <!-- Template for a line item row -->
+  <template id="line-item-template">
+    <tr class="line-item">
+      <td><input type="text" class="item-description" placeholder="Service description"></td>
+      <td><input type="text" class="item-hsn" placeholder="9983"></td>
+      <td><input type="number" class="item-quantity" min="0" step="1" value="1"></td>
+      <td><input type="number" class="item-rate" min="0" step="0.01" value="0"></td>
+      <td><input type="number" class="item-disc" min="0" max="100" step="0.01" value="0"></td>
+      <td class="num"><span class="item-taxable cell-num">₹0.00</span></td>
+      <td>
+        <select class="item-gst-rate">
+          <option value="0">0%</option>
+          <option value="5">5%</option>
+          <option value="12">12%</option>
+          <option value="18" selected>18%</option>
+          <option value="28">28%</option>
+        </select>
+      </td>
+      <td class="num"><span class="item-amount cell-num">₹0.00</span></td>
+      <td class="actions-col"><button type="button" class="remove-row no-print">Remove</button></td>
+    </tr>
+  </template>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'gst-invoice-state-v1';
+      const COUNTER_KEY = 'gst-invoice-counter';
+
+      const body = document.getElementById('line-items-body');
+      const template = document.getElementById('line-item-template');
+
+      /* ---------- GST state codes ---------- */
+      const STATES = [
+        ['', '-- Select State --'],
+        ['01', 'Jammu & Kashmir'], ['02', 'Himachal Pradesh'], ['03', 'Punjab'],
+        ['04', 'Chandigarh'], ['05', 'Uttarakhand'], ['06', 'Haryana'], ['07', 'Delhi'],
+        ['08', 'Rajasthan'], ['09', 'Uttar Pradesh'], ['10', 'Bihar'], ['11', 'Sikkim'],
+        ['12', 'Arunachal Pradesh'], ['13', 'Nagaland'], ['14', 'Manipur'], ['15', 'Mizoram'],
+        ['16', 'Tripura'], ['17', 'Meghalaya'], ['18', 'Assam'], ['19', 'West Bengal'],
+        ['20', 'Jharkhand'], ['21', 'Odisha'], ['22', 'Chhattisgarh'], ['23', 'Madhya Pradesh'],
+        ['24', 'Gujarat'], ['26', 'Dadra & Nagar Haveli and Daman & Diu'], ['27', 'Maharashtra'],
+        ['29', 'Karnataka'], ['30', 'Goa'], ['31', 'Lakshadweep'], ['32', 'Kerala'],
+        ['33', 'Tamil Nadu'], ['34', 'Puducherry'], ['35', 'Andaman & Nicobar Islands'],
+        ['36', 'Telangana'], ['37', 'Andhra Pradesh'], ['38', 'Ladakh'], ['97', 'Other Territory']
+      ];
+      function fillStateSelect(sel) {
+        STATES.forEach(([code, name]) => {
+          const o = document.createElement('option');
+          o.value = code;
+          o.textContent = code ? code + ' - ' + name : name;
+          sel.appendChild(o);
+        });
+      }
+      const sellerState = document.getElementById('seller-state');
+      const clientState = document.getElementById('client-state');
+      const placeOfSupply = document.getElementById('place-of-supply');
+      [sellerState, clientState, placeOfSupply].forEach(fillStateSelect);
+
+      /* ---------- Currency formatting ---------- */
+      const inrFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency', currency: 'INR',
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+      function formatINR(value) { return inrFormatter.format(value || 0); }
+
+      /* ---------- Number to Indian words ---------- */
+      function numberToIndianWords(num) {
+        num = Math.floor(Math.abs(num));
+        if (num === 0) return 'Zero';
+        const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+          'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+          'Seventeen', 'Eighteen', 'Nineteen'];
+        const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+        function twoDigits(n) {
+          if (n < 20) return ones[n];
+          return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+        }
+        function threeDigits(n) {
+          let str = '';
+          if (n > 99) { str += ones[Math.floor(n / 100)] + ' Hundred '; n %= 100; }
+          if (n) str += twoDigits(n) + ' ';
+          return str;
+        }
+        let result = '';
+        const crore = Math.floor(num / 10000000); num %= 10000000;
+        const lakh = Math.floor(num / 100000); num %= 100000;
+        const thousand = Math.floor(num / 1000); num %= 1000;
+        const hundred = num;
+        if (crore) result += threeDigits(crore) + 'Crore ';
+        if (lakh) result += threeDigits(lakh) + 'Lakh ';
+        if (thousand) result += threeDigits(thousand) + 'Thousand ';
+        if (hundred) result += threeDigits(hundred);
+        return result.trim();
+      }
+      function amountInWords(amount) {
+        const rupees = Math.floor(amount);
+        const paise = Math.round((amount - rupees) * 100);
+        let words = numberToIndianWords(rupees) + ' Rupees';
+        if (paise) words += ' and ' + numberToIndianWords(paise) + ' Paise';
+        return words + ' Only';
+      }
+
+      /* ---------- Line item rows ---------- */
+      function addRow(skipSave) {
+        const row = template.content.firstElementChild.cloneNode(true);
+        body.appendChild(row);
+        recalcRow(row);
+        if (!skipSave) saveState();
+        return row;
+      }
+      function removeRow(row) {
+        row.remove();
+        recalcTotals();
+        saveState();
+      }
+      function recalcRow(row) {
+        const qty = parseFloat(row.querySelector('.item-quantity').value) || 0;
+        const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
+        const disc = parseFloat(row.querySelector('.item-disc').value) || 0;
+        const gross = qty * rate;
+        const taxable = gross - (gross * disc / 100);
+        row.querySelector('.item-taxable').dataset.value = taxable;
+        row.querySelector('.item-taxable').textContent = formatINR(taxable);
+        const gstRate = parseFloat(row.querySelector('.item-gst-rate').value) || 0;
+        const amount = taxable + (taxable * gstRate / 100);
+        row.querySelector('.item-amount').dataset.value = amount;
+        row.querySelector('.item-amount').textContent = formatINR(amount);
+        recalcTotals();
+      }
+
+      /* ---------- Totals + CGST/SGST/IGST split ---------- */
+      function recalcTotals() {
+        let subtotal = 0, totalTax = 0;
+        body.querySelectorAll('.line-item').forEach(row => {
+          const taxable = parseFloat(row.querySelector('.item-taxable').dataset.value) || 0;
+          const gstRate = parseFloat(row.querySelector('.item-gst-rate').value) || 0;
+          subtotal += taxable;
+          totalTax += taxable * gstRate / 100;
+        });
+
+        const invoiceDiscount = parseFloat(document.getElementById('invoice-discount').value) || 0;
+        const netTaxable = Math.max(0, subtotal - invoiceDiscount);
+        // Scale tax proportionally if an invoice-level discount reduces the taxable base
+        if (subtotal > 0 && invoiceDiscount > 0) {
+          totalTax = totalTax * (netTaxable / subtotal);
+        }
+
+        // Intra-state (CGST+SGST) vs inter-state (IGST) from state codes
+        const sellerCode = sellerState.value || (document.getElementById('seller-gstin').value || '').slice(0, 2);
+        const posCode = placeOfSupply.value || clientState.value;
+        const intraState = sellerCode && posCode && sellerCode === posCode;
+
+        const lineCgst = document.getElementById('line-cgst');
+        const lineSgst = document.getElementById('line-sgst');
+        const lineIgst = document.getElementById('line-igst');
+        if (intraState) {
+          document.getElementById('summary-cgst').textContent = formatINR(totalTax / 2);
+          document.getElementById('summary-sgst').textContent = formatINR(totalTax / 2);
+          lineCgst.classList.remove('hidden-line');
+          lineSgst.classList.remove('hidden-line');
+          lineIgst.classList.add('hidden-line');
+        } else {
+          document.getElementById('summary-igst').textContent = formatINR(totalTax);
+          lineIgst.classList.remove('hidden-line');
+          lineCgst.classList.add('hidden-line');
+          lineSgst.classList.add('hidden-line');
+        }
+
+        const lineDiscount = document.getElementById('line-discount');
+        if (invoiceDiscount > 0) {
+          document.getElementById('summary-discount').textContent = '-' + formatINR(invoiceDiscount);
+          lineDiscount.classList.remove('hidden-line');
+        } else {
+          lineDiscount.classList.add('hidden-line');
+        }
+
+        const preRound = netTaxable + totalTax;
+        const grandTotal = Math.round(preRound);
+        const roundOff = grandTotal - preRound;
+        const paid = parseFloat(document.getElementById('amount-paid').value) || 0;
+        const balance = grandTotal - paid;
+
+        document.getElementById('summary-subtotal').textContent = formatINR(subtotal);
+        document.getElementById('summary-roundoff').textContent = (roundOff < 0 ? '-' : '') + formatINR(Math.abs(roundOff));
+        document.getElementById('summary-grand-total').textContent = formatINR(grandTotal);
+        document.getElementById('summary-balance').textContent = formatINR(balance);
+        document.getElementById('amount-words').textContent = amountInWords(grandTotal);
+
+        updateQR(grandTotal);
+        updateWatermark();
+      }
+
+      /* ---------- Watermark ---------- */
+      function updateWatermark() {
+        const status = document.getElementById('payment-status').value;
+        const wm = document.getElementById('watermark');
+        wm.className = 'watermark';
+        if (status === 'paid') { wm.textContent = 'PAID'; wm.classList.add('show', 'paid'); }
+        else if (status === 'unpaid') { wm.textContent = 'DUE'; wm.classList.add('show', 'due'); }
+        // 'partial' shows no watermark
+      }
+
+      /* ---------- UPI QR ---------- */
+      let qrInstance = null;
+      function updateQR(grandTotal) {
+        const upi = (document.getElementById('upi-id').value || '').trim();
+        const holder = document.getElementById('qrcode');
+        const hint = document.getElementById('qr-hint');
+        holder.innerHTML = '';
+        if (!upi || typeof QRCode === 'undefined') {
+          hint.textContent = 'Enter a UPI ID to generate a payment QR';
+          return;
+        }
+        const payee = encodeURIComponent(document.getElementById('seller-name').value || document.getElementById('company-name').value || 'Payee');
+        const note = encodeURIComponent(document.getElementById('invoice-number').value || 'Invoice');
+        const amt = (grandTotal || 0).toFixed(2);
+        const upiUrl = 'upi://pay?pa=' + encodeURIComponent(upi) + '&pn=' + payee + '&am=' + amt + '&cu=INR&tn=' + note;
+        qrInstance = new QRCode(holder, { text: upiUrl, width: 132, height: 132, correctLevel: QRCode.CorrectLevel.M });
+        hint.textContent = 'Scan to pay ' + formatINR(grandTotal) + ' via UPI';
+      }
+
+      /* ---------- GSTIN validation + state auto-fill ---------- */
+      const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+      function validateGstin(input, stateSelect) {
+        const val = (input.value || '').trim().toUpperCase();
+        input.value = val;
+        if (!val) { input.classList.remove('invalid'); return; }
+        const ok = GSTIN_RE.test(val);
+        input.classList.toggle('invalid', !ok);
+        if (ok && stateSelect && !stateSelect.value) {
+          stateSelect.value = val.slice(0, 2);
+          recalcTotals();
+        }
+      }
+
+      /* ---------- Logo & signature upload ---------- */
+      function wireImageUpload(inputId, imgId, textId, wrapId, wrapClass) {
+        const input = document.getElementById(inputId);
+        const img = document.getElementById(imgId);
+        const text = document.getElementById(textId);
+        const wrap = document.getElementById(wrapId);
+        input.addEventListener('change', function (e) {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function (ev) {
+            img.src = ev.target.result;
+            img.hidden = false;
+            text.style.display = 'none';
+            wrap.classList.add(wrapClass);
+            saveState();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+      wireImageUpload('logo-input', 'logo-img', 'logo-text', 'logo-upload', 'has-logo');
+      wireImageUpload('sign-input', 'sign-img', 'sign-text', 'sign-upload', 'has-sign');
+
+      /* ---------- State persistence (localStorage + export/import) ---------- */
+      const FIELD_IDS = [
+        'company-name', 'invoice-number', 'invoice-date', 'due-date', 'place-of-supply',
+        'reverse-charge', 'seller-name', 'seller-address', 'seller-gstin', 'seller-state',
+        'seller-email', 'seller-phone', 'client-name', 'client-address', 'client-gstin',
+        'client-state', 'client-email', 'client-phone', 'invoice-discount', 'amount-paid',
+        'payment-status', 'bank-name', 'bank-acc', 'bank-branch', 'bank-ifsc', 'upi-id',
+        'sign-name', 'sign-desig', 'notes', 'terms', 'declaration'
+      ];
+      function collectState() {
+        const state = { fields: {}, rows: [], editable: {}, images: {} };
+        FIELD_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          state.fields[id] = (el.isContentEditable) ? el.innerHTML : el.value;
+        });
+        body.querySelectorAll('.line-item').forEach(row => {
+          state.rows.push({
+            description: row.querySelector('.item-description').value,
+            hsn: row.querySelector('.item-hsn').value,
+            quantity: row.querySelector('.item-quantity').value,
+            rate: row.querySelector('.item-rate').value,
+            disc: row.querySelector('.item-disc').value,
+            gstRate: row.querySelector('.item-gst-rate').value
+          });
+        });
+        document.querySelectorAll('[contenteditable="true"]').forEach((el, i) => {
+          state.editable[i] = el.innerHTML;
+        });
+        const logo = document.getElementById('logo-img');
+        const sign = document.getElementById('sign-img');
+        if (logo.src && !logo.hidden) state.images.logo = logo.src;
+        if (sign.src && !sign.hidden) state.images.sign = sign.src;
+        return state;
+      }
+      function applyState(state) {
+        if (!state) return;
+        FIELD_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el || !(id in (state.fields || {}))) return;
+          if (el.isContentEditable) el.innerHTML = state.fields[id];
+          else el.value = state.fields[id];
+        });
+        // rows
+        body.innerHTML = '';
+        (state.rows && state.rows.length ? state.rows : [null]).forEach(r => {
+          const row = addRow(true);
+          if (r) {
+            row.querySelector('.item-description').value = r.description || '';
+            row.querySelector('.item-hsn').value = r.hsn || '';
+            row.querySelector('.item-quantity').value = r.quantity || '1';
+            row.querySelector('.item-rate').value = r.rate || '0';
+            row.querySelector('.item-disc').value = r.disc || '0';
+            row.querySelector('.item-gst-rate').value = r.gstRate || '18';
+            recalcRow(row);
+          }
+        });
+        // editable labels
+        if (state.editable) {
+          document.querySelectorAll('[contenteditable="true"]').forEach((el, i) => {
+            if (i in state.editable) el.innerHTML = state.editable[i];
+          });
+        }
+        // images
+        if (state.images) {
+          if (state.images.logo) {
+            const img = document.getElementById('logo-img');
+            img.src = state.images.logo; img.hidden = false;
+            document.getElementById('logo-text').style.display = 'none';
+            document.getElementById('logo-upload').classList.add('has-logo');
+          }
+          if (state.images.sign) {
+            const img = document.getElementById('sign-img');
+            img.src = state.images.sign; img.hidden = false;
+            document.getElementById('sign-text').style.display = 'none';
+            document.getElementById('sign-upload').classList.add('has-sign');
+          }
+        }
+        recalcTotals();
+      }
+      let saveTimer = null;
+      function saveState() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState())); } catch (e) { /* ignore */ }
+        }, 300);
+      }
+
+      /* ---------- Auto invoice number ---------- */
+      function pad(n) { return n < 10 ? '0' + n : '' + n; }
+      function nextInvoiceNumber() {
+        let counter = parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10) + 1;
+        localStorage.setItem(COUNTER_KEY, String(counter));
+        const today = new Date();
+        const ymd = '' + today.getFullYear() + pad(today.getMonth() + 1) + pad(today.getDate());
+        return 'INV-' + ymd + '-' + pad(counter);
+      }
+
+      /* ---------- Events ---------- */
+      body.addEventListener('input', e => {
+        const row = e.target.closest('.line-item');
+        if (row) recalcRow(row);
+        saveState();
+      });
+      body.addEventListener('change', e => {
+        const row = e.target.closest('.line-item');
+        if (row) recalcRow(row);
+        saveState();
+      });
+      body.addEventListener('click', e => {
+        if (e.target.classList.contains('remove-row')) removeRow(e.target.closest('.line-item'));
+      });
+
+      document.getElementById('add-row').addEventListener('click', () => addRow());
+      document.getElementById('remove-row').addEventListener('click', function () {
+        const rows = body.querySelectorAll('.line-item');
+        if (rows.length > 1) removeRow(rows[rows.length - 1]);
+      });
+
+      // Recalc-driving fields
+      ['invoice-discount', 'amount-paid', 'payment-status', 'seller-state', 'client-state', 'place-of-supply', 'upi-id', 'reverse-charge']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          el.addEventListener('input', () => { recalcTotals(); saveState(); });
+          el.addEventListener('change', () => { recalcTotals(); saveState(); });
+        });
+
+      // GSTIN validation
+      const sellerGstin = document.getElementById('seller-gstin');
+      const clientGstin = document.getElementById('client-gstin');
+      sellerGstin.addEventListener('blur', () => { validateGstin(sellerGstin, sellerState); saveState(); });
+      clientGstin.addEventListener('blur', () => {
+        validateGstin(clientGstin, clientState);
+        if (!placeOfSupply.value && clientState.value) placeOfSupply.value = clientState.value;
+        recalcTotals(); saveState();
+      });
+
+      // Persist on any other input / contenteditable edit
+      document.addEventListener('input', () => saveState());
+      document.querySelectorAll('[contenteditable="true"]').forEach(el =>
+        el.addEventListener('blur', () => saveState()));
+
+      // Export / import JSON
+      document.getElementById('export-json').addEventListener('click', function () {
+        const data = JSON.stringify(collectState(), null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (document.getElementById('invoice-number').value || 'invoice') + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+      document.getElementById('import-json').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          try { applyState(JSON.parse(ev.target.result)); saveState(); }
+          catch (err) { alert('Invalid JSON file.'); }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+
+      // Print
+      document.getElementById('print-invoice').addEventListener('click', () => window.print());
+
+      // Download PDF (jsPDF + html2canvas)
+      document.getElementById('download-pdf').addEventListener('click', function () {
+        const { jsPDF } = window.jspdf;
+        const main = document.querySelector('main');
+        const controls = main.querySelectorAll('.no-print, .logo-upload:not(.has-logo), .sign-upload:not(.has-sign)');
+        const restore = () => controls.forEach(el => el.style.display = '');
+        controls.forEach(el => el.style.display = 'none');
+
+        const invoiceNo = (document.getElementById('invoice-number').value || 'invoice').trim();
+
+        html2canvas(main, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+          .then(function (canvas) {
+            const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+            let heightLeft = imgHeight;
+            let position = 0;
+            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft > 0) {
+              position -= pageHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+            pdf.save(invoiceNo + '.pdf');
+            restore();
+          })
+          .catch(function (err) {
+            console.error('PDF generation failed:', err);
+            restore();
+          });
+      });
+
+      /* ---------- Init ---------- */
+      const saved = (() => {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { return null; }
+      })();
+      if (saved) {
+        applyState(saved);
+      } else {
+        addRow(true);
+        recalcTotals();
+      }
+      if (!document.getElementById('invoice-number').value) {
+        document.getElementById('invoice-number').value = nextInvoiceNumber();
+        recalcTotals();
+        saveState();
+      }
+    })();
+  </script>
+</body>
+</html>
